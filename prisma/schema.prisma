@@ -1,0 +1,389 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Tabel Role
+model Role {
+  id_role   Int    @id @default(autoincrement())
+  nama_role String
+
+  pengurus Pengurus[]
+}
+
+// Tabel Pengurus (Admin/Satgas)
+model Pengurus {
+  id_pengurus Int @id @default(autoincrement())
+
+  id_role Int
+  role    Role @relation(fields: [id_role], references: [id_role])
+
+  nama_pengurus  String
+  email_pengurus String  @unique
+  password       String
+  prodi          String?
+  fakultas       String?
+  is_aktif       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi ke TimPenanganan
+  timPenanganan TimPenanganan[]
+
+
+
+  // Relasi ke AnggotaTim (CMS)
+  anggotaTim AnggotaTim[]
+  
+  // Relasi ke Laporan Akhir
+  laporanAkhir LaporanAkhirSemester[]
+}
+
+// Tabel Rektorat
+
+
+// Module: Pelaporan
+
+model Korban {
+  id_pelapor      Int     @id @default(autoincrement())
+  nama_korban     String
+  email_korban    String
+  no_hp_korban    String?
+  fakultas_korban String?
+  status_korban   String // Mahasiswa/Dosen/Karyawan
+  jenis_kelamin   String? // L/P
+
+  laporan Laporan[]
+}
+
+model Pelaku {
+  id_terlapor     Int     @id @default(autoincrement())
+  nama_pelaku     String
+  status_pelaku   String?
+  fakultas_pelaku String?
+
+  laporan Laporan[]
+}
+
+model Saksi {
+  id_saksi       Int     @id @default(autoincrement())
+  nama_saksi     String
+  email_saksi    String?
+  no_hp_saksi    String?
+  fakultas_saksi String?
+  status_saksi   String
+  jenis_kelamin  String?
+
+  laporan Laporan[]
+}
+
+model Laporan {
+  id_laporan Int @id @default(autoincrement())
+
+  // Relasi ke Korban, Pelaku, Saksi, Pendamping
+  id_pelapor Int?
+  korban     Korban? @relation(fields: [id_pelapor], references: [id_pelapor])
+
+  id_terlapor Int?
+  pelaku      Pelaku? @relation(fields: [id_terlapor], references: [id_terlapor])
+
+  id_saksi Int?
+  saksi    Saksi? @relation(fields: [id_saksi], references: [id_saksi])
+  
+  // Data Laporan
+  tgl_laporan         DateTime @default(now())
+  waktu_kejadian      DateTime?
+  status_laporan      String // Masuk, Verifikasi, Investigasi, Selesai
+  jenis_kekerasan     String? // Comma separated
+  jml_pelaku          Int?
+  jml_saksi           Int?
+  durasi_penanganan   String?
+  bukti_laporan       String?  @db.LongText // Mencegah teks terpotong untuk array URL yang panjang
+  kronologi_laporan   String   @db.LongText
+  tkp                 String?
+  pendampingan_segera Boolean  @default(false)
+  link_video          String?  // Link Google Drive dll
+  tindak_lanjut       String? // Proses Lanjut/Hanya Lapor
+  prioritas           String   @default("Rendah") // Rendah, Sedang, Tinggi
+  sanksi              String? // Ringan, Sedang, Berat
+  keterangan_sanksi   String?  @db.Text // Keterangan sanksi
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi
+  timPenanganan TimPenanganan[]
+  logPelaporan  LogPelaporan[]
+
+  catatan       Catatan[]
+  dokumen       DokumenLaporan[]
+  
+  // Relasi Arsip
+  arsip            Arsip[]
+}
+
+model Catatan {
+  id_catatan    Int      @id @default(autoincrement())
+  id_laporan    Int
+  laporan       Laporan  @relation(fields: [id_laporan], references: [id_laporan])
+  isi_catatan   String   @db.Text
+  penulis_nama  String
+  penulis_role  String?
+  createdAt     DateTime @default(now())
+}
+
+model DokumenLaporan {
+  id_dokumen Int      @id @default(autoincrement())
+  id_laporan Int
+  laporan    Laporan  @relation(fields: [id_laporan], references: [id_laporan])
+  nama_file  String
+  url_file   String   @db.Text
+  jenis_file String   // "BAP", etc.
+  keterangan String?
+  uploadedBy String?  // Optional: Who uploaded it (Name/Role)
+  createdAt  DateTime @default(now())
+}
+
+// Module: Penanganan
+
+model TimPenanganan {
+  id_timpenanganan Int @id @default(autoincrement())
+
+  id_pengurus Int
+  pengurus    Pengurus @relation(fields: [id_pengurus], references: [id_pengurus])
+
+  id_laporan Int
+  laporan    Laporan @relation(fields: [id_laporan], references: [id_laporan])
+
+  posisi String // Ketua, Anggota
+}
+
+model LogPelaporan {
+  id_logpelaporan Int @id @default(autoincrement())
+
+  id_laporan Int
+  laporan    Laporan @relation(fields: [id_laporan], references: [id_laporan])
+
+  deskripsi_log String   @db.Text
+  waktu         DateTime @default(now())
+}
+
+// Module: Legal & SK
+
+model UndangUndang {
+  id_undangundang    Int    @id @default(autoincrement())
+  judul_undangundang String
+  isi_undangundang   String @db.LongText
+
+    // Relasi Arsip
+  arsip            Arsip[]
+}
+
+// Module: Arsip (Simple Upload)
+model Arsip {
+  id_arsip Int @id @default(autoincrement())
+
+  id_laporan Int?
+  laporan    Laporan? @relation(fields: [id_laporan], references: [id_laporan])
+
+  id_undangundang Int?
+  undangundang    UndangUndang? @relation(fields: [id_undangundang], references: [id_undangundang])
+
+  judul_arsip  String  @default("-") 
+  file_url  String  
+  status_arsip String  @default("Arsip")
+  createdAt DateTime @default(now())
+}
+
+// Module: CMS (Profil & Alur)
+
+model ProfilSatgas {
+  id_profilsatgas  Int    @id @default(1)
+  deskripsi_profil String @db.Text
+  visi             String @db.Text
+  misi            String  @db.Text
+}
+
+model NilaiSatgas {
+  id        Int      @id @default(autoincrement())
+  judul     String
+  deskripsi String   @db.Text
+  urutan    Int      @default(0)
+}
+
+model AlurPelaporan {
+  id_alurpelaporan Int     @id @default(autoincrement())
+  judul            String? // Added title
+  gambar_url       String?
+  deskripsi        String  @db.Text
+}
+
+// Panduan Sistem
+model PanduanSistem {
+  id_panduan Int      @id @default(autoincrement())
+  judul      String
+  kategori   String   @default("Internal") // "Internal" | "Publik"
+  file_url   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// Module: CMS (Existing - Berita & Landing Page)
+
+model KategoriBerita {
+  id        Int      @id @default(autoincrement())
+  nama      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Berita {
+  id        Int      @id @default(autoincrement())
+  judul     String
+  slug      String   @unique
+  kategori  String
+  konten    String   @db.LongText
+  excerpt   String   @db.Text
+  penulis   String
+  gambarUrl    String?
+  dokumentasi1 String?
+  dokumentasi2 String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AnggotaTim {
+  id      Int     @id @default(autoincrement())
+  nama    String
+  jabatan String
+  fotoUrl String?
+  urutan  Int     @default(0)
+  id_pengurus Int?
+  pengurus    Pengurus? @relation(fields: [id_pengurus], references: [id_pengurus])
+}
+
+// Statistik Landing Page
+model Statistik {
+  id     Int    @id @default(autoincrement())
+  label  String
+  jumlah String
+  urutan Int    @default(0)
+}
+
+// Konfigurasi Landing Page
+model KonfigurasiBeranda {
+  id                Int     @id @default(1)
+  heroTitle         String
+  heroSubtitle      String  @db.Text
+  heroImageUrl      String?
+  ctaTitle          String
+  ctaSubtitle       String  @db.Text
+  ctaImageUrl       String?
+  ctaVideoUrl       String?
+  heroHotlineNumber String?
+  
+  // Navbar Config
+  navbarTitle       String?
+  navbarSubtitle    String?
+  navbarLogoUrl     String?
+}
+
+// Module: Layanan
+
+// Module: Layanan
+model Layanan {
+  id        Int      @id @default(autoincrement())
+  title     String
+  desc      String   @db.Text
+  iconBg    String
+  icon      String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Module: Kekerasan
+model JenisKekerasan {
+  id        Int      @id @default(autoincrement())
+  judul     String
+  deskripsi String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  contoh    ContohKekerasan[]
+}
+
+model ContohKekerasan {
+  id                Int            @id @default(autoincrement())
+  isi_contoh        String
+  id_jeniskekerasan Int
+  jenisKekerasan    JenisKekerasan @relation(fields: [id_jeniskekerasan], references: [id])
+}
+
+// Module: Fakultas & Prodi
+model Fakultas {
+  id        Int      @id @default(autoincrement())
+  nama      String   @unique
+  prodi     ProgramStudi[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProgramStudi {
+  id         Int      @id @default(autoincrement())
+  nama       String
+  id_fakultas Int
+  fakultas   Fakultas @relation(fields: [id_fakultas], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+
+
+// Konfigurasi Footer
+model KonfigurasiFooter {
+  id                Int     @id @default(1)
+  footerTitle       String  @default("Satgas PPKPT")
+  footerDescription String  @db.Text
+  alamat            String  @db.Text
+  email             String
+  telepon           String
+  footerLogoUrl     String?
+  facebookUrl       String?
+  instagramUrl      String?
+  twitterUrl        String?
+  youtubeUrl        String?
+}
+
+// Module: Laporan Akhir Semester
+model LaporanAkhirSemester {
+  id          Int      @id @default(autoincrement())
+  judul       String
+  semester    String   // e.g., "Genap TA 2025/2026"
+  fileUrl     String
+  tipeFile    String   // "pdf" | "docx"
+  
+  id_pengurus Int
+  pengurus    Pengurus @relation(fields: [id_pengurus], references: [id_pengurus])
+  
+  createdAt   DateTime @default(now())
+}
+
+// Module: Tahun Akademik
+model TahunAkademik {
+  id_tahunakademik Int      @id @default(autoincrement())
+  nama             String   // e.g. "Ganjil 2024/2025"
+  is_active        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
